@@ -2,6 +2,7 @@ defmodule MazeTest.Walker do
   use GenServer, restart: :transient
 
   alias MazeTest.Generator
+  alias BehaviorTree.Node
 
   import Process, only: [send_after: 3, flag: 2]
 
@@ -82,29 +83,31 @@ defmodule MazeTest.Walker do
     end
   end
 
-  def iterate(state) do
-    cond do
-      can_walk?(change_direction(state)) ->
-        state
-        |> change_direction()
-        |> walk()
-
-      can_walk?(state) ->
-        walk(state)
-
-      can_walk?(change_direction(change_direction(change_direction(state)))) ->
-        state
-        |> change_direction()
-        |> change_direction()
-        |> change_direction()
-        |> walk()
-
-      true ->
-        state
-        |> change_direction()
-        |> change_direction()
-        |> walk()
+  def traverse_tree(tree) do
+    if tree |> BehaviorTree.value() |> can_walk?() do
+      tree
+    else
+      tree
+      |> BehaviorTree.fail()
+      |> traverse_tree()
     end
+  end
+
+  def iterate(state) do
+    Node.select([
+      # Turn clockwise
+      state |> change_direction(),
+      # Go forward
+      state,
+      # Turn counterclockwise
+      state |> change_direction() |> change_direction() |> change_direction(),
+      # Go backward
+      state |> change_direction() |> change_direction()
+    ])
+    |> BehaviorTree.start()
+    |> traverse_tree()
+    |> BehaviorTree.value()
+    |> walk()
   end
 
   def print(state) do
